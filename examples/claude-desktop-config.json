@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "searchlight": {
+      "command": "npx",
+      "args": ["@searchlight/mcp-client"],
+      "env": {
+        "MCP_SERVER_URL": "https://searchlight.headline.com/api/mcp",
+        "MCP_TOKEN": "your_searchlight_mcp_token_here"
+      }
+    }
+  }
+}

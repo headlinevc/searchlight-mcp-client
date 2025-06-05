@@ -1,0 +1,51 @@
+{
+  "name": "@searchlight/mcp-client",
+  "version": "1.0.0",
+  "description": "MCP client for Searchlight company data and analytics platform",
+  "main": "lib/client.js",
+  "bin": {
+    "searchlight-mcp": "./bin/searchlight-mcp"
+  },
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint bin/ lib/",
+    "prepublishOnly": "npm test"
+  },
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "searchlight",
+    "company-data",
+    "analytics",
+    "claude-desktop",
+    "ai-tools"
+  ],
+  "author": "Searchlight",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/headlinevc/searchlight-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/headlinevc/searchlight-mcp/issues"
+  },
+  "homepage": "https://github.com/headlinevc/searchlight-mcp#readme",
+  "files": [
+    "bin/",
+    "lib/",
+    "README.md",
+    "examples/"
+  ],
+  "dependencies": {},
+  "devDependencies": {
+    "jest": "^29.0.0",
+    "eslint": "^8.0.0"
+  },
+  "peerDependencies": {},
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,287 @@
+#!/usr/bin/env node
+
+/**
+ * Searchlight MCP Client
+ * 
+ * This is a bridge that allows Claude Desktop and other MCP clients to communicate 
+ * with the Searchlight MCP server. It translates between stdio (used by MCP clients) 
+ * and HTTP (used by Searchlight).
+ */
+
+const http = require('http');
+const https = require('https');
+const { URL } = require('url');
+
+class SearchlightMCPClient {
+  constructor() {
+    this.serverUrl = process.env.MCP_SERVER_URL || process.env.SEARCHLIGHT_API_URL || 'https://searchlight.headline.com/api/mcp';
+    this.token = process.env.MCP_TOKEN || process.env.SEARCHLIGHT_API_TOKEN;
+    
+    if (!this.token) {
+      console.error('Error: No authentication token provided. Please set MCP_TOKEN or SEARCHLIGHT_API_TOKEN environment variable.');
+      process.exit(1);
+    }
+
+    this.requestId = 0;
+    this.setupStdio();
+  }
+
+  setupStdio() {
+    // Handle stdin for JSON-RPC messages from Claude Desktop
+    let buffer = '';
+    
+    process.stdin.on('data', (chunk) => {
+      buffer += chunk.toString();
+      
+      // Process complete JSON-RPC messages (separated by newlines)
+      const lines = buffer.split('\n');
+      buffer = lines.pop() || ''; // Keep incomplete line in buffer
+      
+      for (const line of lines) {
+        if (line.trim()) {
+          this.handleMessage(line.trim());
+        }
+      }
+    });
+
+    process.stdin.on('end', () => {
+      if (buffer.trim()) {
+        this.handleMessage(buffer.trim());
+      }
+    });
+
+    // Handle process termination
+    process.on('SIGINT', () => process.exit(0));
+    process.on('SIGTERM', () => process.exit(0));
+  }
+
+  async handleMessage(messageStr) {
+    let messageId = null;
+    
+    try {
+      const message = JSON.parse(messageStr);
+      messageId = message.id;
+      
+      console.error('Received message:', JSON.stringify(message));
+      
+      // Handle initialization separately
+      if (message.method === 'initialize') {
+        this.sendResponse({
+          jsonrpc: "2.0",
+          id: messageId,
+          result: {
+            protocolVersion: "2024-11-05",
+            capabilities: {
+              tools: {}
+            },
+            serverInfo: {
+              name: "searchlight-mcp-client",
+              version: "1.0.0"
+            }
+          }
+        });
+        return;
+      }
+
+      // Handle notifications (which don't expect responses)
+      if (message.method && message.method.startsWith('notifications/')) {
+        console.error('Received notification:', message.method);
+        // Notifications don't get responses
+        return;
+      }
+
+      // Handle unsupported methods locally
+      if (message.method === 'prompts/list') {
+        this.sendResponse({
+          jsonrpc: "2.0",
+          id: messageId,
+          result: {
+            prompts: []
+          }
+        });
+        return;
+      }
+
+      if (message.method === 'resources/list') {
+        this.sendResponse({
+          jsonrpc: "2.0",
+          id: messageId,
+          result: {
+            resources: []
+          }
+        });
+        return;
+      }
+      
+      // Forward the message to the Searchlight HTTP server
+      const response = await this.forwardToServer(message);
+      
+      console.error('Server response:', JSON.stringify(response));
+      
+      // Send response back to Claude Desktop via stdout
+      this.sendResponse(response);
+      
+    } catch (error) {
+      console.error('Error handling message:', error);
+      
+      // Send error response back to Claude Desktop with proper ID
+      this.sendResponse({
+        jsonrpc: "2.0",
+        id: messageId || null,
+        error: {
+          code: -32603,
+          message: "Internal error",
+          data: error.message
+        }
+      });
+    }
+  }
+
+  async forwardToServer(message) {
+    return new Promise((resolve, reject) => {
+      const url = new URL(this.serverUrl);
+      const isHttps = url.protocol === 'https:';
+      const httpModule = isHttps ? https : http;
+      
+      const postData = JSON.stringify(message);
+      
+      const options = {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: url.pathname,
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(postData),
+          'Authorization': `Bearer ${this.token}`,
+          'User-Agent': 'Searchlight-MCP-Client/1.0'
+        }
+      };
+
+      const req = httpModule.request(options, (res) => {
+        let responseData = '';
+        
+        res.on('data', (chunk) => {
+          responseData += chunk;
+        });
+        
+        res.on('end', () => {
+          try {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              const response = JSON.parse(responseData);
+              resolve(response);
+            } else {
+              // Handle HTTP errors - create a proper JSON-RPC error response
+              let errorMessage = `HTTP ${res.statusCode}`;
+              let errorData = null;
+              
+              try {
+                const parsedError = JSON.parse(responseData);
+                if (parsedError.error) {
+                  // Server returned a JSON-RPC error
+                  resolve(parsedError);
+                  return;
+                }
+                errorMessage = parsedError.message || errorMessage;
+                errorData = parsedError;
+              } catch (e) {
+                // Use default error message if response isn't JSON
+                errorData = { httpStatus: res.statusCode, response: responseData };
+              }
+              
+              // Create a JSON-RPC error response
+              resolve({
+                jsonrpc: "2.0",
+                id: message.id || null,
+                error: {
+                  code: -32603,
+                  message: errorMessage,
+                  data: errorData
+                }
+              });
+            }
+          } catch (parseError) {
+            // Create a JSON-RPC error response for parse errors
+            resolve({
+              jsonrpc: "2.0",
+              id: message.id || null,
+              error: {
+                code: -32700,
+                message: "Parse error",
+                data: parseError.message
+              }
+            });
+          }
+        });
+      });
+
+      req.on('error', (error) => {
+        // Create a JSON-RPC error response for network errors
+        resolve({
+          jsonrpc: "2.0",
+          id: message.id || null,
+          error: {
+            code: -32603,
+            message: "Network error",
+            data: error.message
+          }
+        });
+      });
+
+      req.setTimeout(30000, () => {
+        req.destroy();
+        // Create a JSON-RPC error response for timeouts
+        resolve({
+          jsonrpc: "2.0",
+          id: message.id || null,
+          error: {
+            code: -32603,
+            message: "Request timeout",
+            data: "Server request timed out after 30 seconds"
+          }
+        });
+      });
+
+      req.write(postData);
+      req.end();
+    });
+  }
+
+  sendResponse(response) {
+    // Send JSON-RPC response to Claude Desktop via stdout
+    const responseStr = JSON.stringify(response);
+    process.stdout.write(responseStr + '\n');
+  }
+}
+
+// Start the MCP client
+const client = new SearchlightMCPClient();
+
+// Send a ping to test connection when starting
+(async () => {
+  try {
+    console.error('Searchlight MCP Client starting...');
+    console.error(`Server URL: ${client.serverUrl}`);
+    console.error(`Token: ${client.token ? '***provided***' : 'MISSING'}`);
+    
+    // Test connection (but don't exit if it fails during startup)
+    try {
+      const testResponse = await client.forwardToServer({
+        jsonrpc: "2.0",
+        method: "ping",
+        id: 999
+      });
+      
+      console.error('Connection test successful:', testResponse);
+    } catch (error) {
+      console.error('Initial connection test failed:', error.message);
+      console.error('Will retry when requests come in...');
+    }
+    
+    console.error('MCP Client ready for requests');
+    
+  } catch (error) {
+    console.error('Startup error:', error.message);
+    // Don't exit, let it try to handle requests
+  }
+})();

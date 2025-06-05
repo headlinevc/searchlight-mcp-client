@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "searchlight": {
+      "command": "npx",
+      "args": ["@searchlight/mcp-client"],
+      "env": {
+        "MCP_SERVER_URL": "http://localhost:3000/api/mcp",
+        "MCP_TOKEN": "your_local_dev_token_here"
+      }
+    }
+  }
+}

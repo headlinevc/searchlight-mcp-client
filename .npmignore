@@ -1,0 +1,6 @@
+*.test.js
+test/
+coverage/
+.nyc_output/
+.env*
+examples/
