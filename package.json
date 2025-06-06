@@ -1,5 +1,5 @@
 {
-  "name": "@searchlight/mcp-client",
+  "name": "@headlinevc/searchlight-mcp-client",
   "version": "1.0.0",
   "description": "MCP client for Searchlight company data and analytics platform",
   "main": "lib/client.js",
