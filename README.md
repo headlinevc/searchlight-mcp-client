@@ -7,13 +7,13 @@ A Model Context Protocol (MCP) client for accessing Searchlight's company data a
 ### Via npm (Recommended for Production)
 
 ```bash
-npm install -g @searchlight/mcp-client
+npm install -g @headlinevc/searchlight-mcp-client
 ```
 
 ### Via npx (No Installation Required)
 
 ```bash
-npx @searchlight/mcp-client
+npx @headlinevc/searchlight-mcp-client
 ```
 
 ## Setup
@@ -40,7 +40,7 @@ Add the following configuration to your Claude Desktop config file:
   "mcpServers": {
     "searchlight": {
       "command": "npx",
-      "args": ["@searchlight/mcp-client"],
+      "args": ["@headlinevc/searchlight-mcp-client"],
       "env": {
         "MCP_SERVER_URL": "https://searchlight.headline.com/api/mcp",
         "MCP_TOKEN": "your_token_here"
@@ -70,7 +70,7 @@ For local development against a Searchlight development server:
   "mcpServers": {
     "searchlight": {
       "command": "npx",
-      "args": ["@searchlight/mcp-client"],
+      "args": ["@headlinevc/searchlight-mcp-client"],
       "env": {
         "MCP_SERVER_URL": "http://localhost:3000/api/mcp",
         "MCP_TOKEN": "your_dev_token_here"
@@ -93,5 +93,5 @@ For local development against a Searchlight development server:
 To see detailed logging, check the Claude Desktop logs or run the client directly:
 
 ```bash
-echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | MCP_TOKEN=your_token npx @searchlight/mcp-client
+echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | MCP_TOKEN=your_token npx @headlinevc/searchlight-mcp-client
 ```
